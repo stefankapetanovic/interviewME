@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+</head>
+<body>
+
+<video autoplay />
+
+<script>
+// See also: https://www.html5rocks.com/en/tutorials/getusermedia/intro/
+
+// Used to save the final blob for this demo. We won't need this if we are just going to send the chunks to a server.
+// See also: https://stackoverflow.com/a/23452051 -- better to use a library like FileSaver.js if we need to do this for real
+function saveAs(blob, fileName) {
+    const url = window.URL.createObjectURL(blob);
+    const anchorElem = document.createElement("a");
+    anchorElem.style = "display: none";
+    anchorElem.href = url;
+    anchorElem.download = fileName;
+
+    document.body.appendChild(anchorElem);
+    anchorElem.click();
+
+    document.body.removeChild(anchorElem);
+
+    setTimeout(function() { window.URL.revokeObjectURL(url); }, 1000);
+}
+
+function handleSuccess(stream) {
+  const chunks = [];
+  const recorder = new MediaRecorder(stream, {mimeType: 'video/webm'});
+  
+  recorder.ondataavailable = function(event) {
+    // TODO: Send chunks to a server instead of saving them here in the browser
+    chunks.push(event.data);
+  };
+  
+  recorder.onstop = function(event) {
+    var blob = new Blob(chunks, {'type': 'video/webm'});
+    saveAs(blob, 'test.webm');
+  };
+  
+  document.querySelector('video').srcObject = stream;
+  recorder.start(1000);
+  
+  setTimeout(function() { recorder.stop(); }, 15000);
+}
+
+function handleError(error) { console.error('Rejected!', error); }
+
+function hasGetUserMedia() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+
+if (hasGetUserMedia()) {  
+  const constraints = { video: true, audio: true};
+  navigator.mediaDevices.getUserMedia(constraints).then(handleSuccess).catch(handleError);
+} else {
+  alert('getUserMedia() is not supported by your browser');
+}
+</script>
+</body>
+</html>
