@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>    
+</head>
+<body>
+
+<video autoplay></video>
+
+<script>
+    function getURL(path) {
+        return 'http://' + window.location.hostname + ":3000/" + path;
+    }
+
+    function handleSuccess(stream) {
+        let xhr = new XMLHttpRequest();
+        xhr.open('POST', getURL('startStream'), true);
+        xhr.send();
+
+        const recorder = new MediaRecorder(stream, {mimeType: 'video/webm'});
+
+        recorder.ondataavailable = function(event) {
+            let xhr = new XMLHttpRequest();
+            xhr.open('POST', getURL('postChunk'), true);
+            xhr.setRequestHeader('Content-type', 'video/webm');
+            xhr.send(event.data);
+        };
+
+        recorder.onstop = function(event) {
+            let xhr = new XMLHttpRequest();
+            xhr.open('POST', getURL('lastChunk'), true);
+            xhr.send();
+        };
+
+        document.querySelector('video').srcObject = stream;
+        recorder.start(1000);
+
+        setTimeout(function() { recorder.stop(); }, 5000);
+    }
+
+    function handleError(error) { console.error('Rejected!', error); }
+
+    function hasGetUserMedia() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+
+    if (hasGetUserMedia()) {    
+        const constraints = { video: true, audio: true};
+        navigator.mediaDevices.getUserMedia(constraints).then(handleSuccess).catch(handleError);
+    } else {
+        alert('getUserMedia() is not supported by your browser');
+    }
+</script>
+</body>
+</html>
