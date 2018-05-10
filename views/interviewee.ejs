@@ -1,53 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8"/>    
+<meta charset="utf-8"/>
 </head>
 <body>
 
-<video autoplay></video>
+<div>
+<video id="streamingvideo"></video>
+<canvas style="width:640px; height: 480px;" id="fakecanvas" hidden></canvas>
+</div>
 
 <script>
-    function getURL(path) {
-        return 'http://' + window.location.hostname + ":3000/" + path;
+let connection = null;
+let drawCallback = null;
+const clientID = <%= id %>;
+var WebSocket = WebSocket || MozWebSocket;
+
+function connect() {
+  const serverUrl = "ws://" + window.location.hostname + ":6502";
+  connection = new WebSocket(serverUrl);
+  connection.onopen = function(){
+    send(clientID, 'id');
+  };
+  connection.onmessage = function(evt) {
+    console.log(evt.data);    
+    const msg = JSON.parse(evt.data);
+    switch(msg.type) {
+      case "guess":
+        return;
+    }
+  };
+}
+
+function send(data, type) {
+  if (connection.readyState === connection.CLOSED || connection.readyState === connection.CLOSING) {
+    console.log('disconnected!');
+    clearInterval(drawCallback);
+    return;
+  }
+  var msg = {
+    type: type,
+    data: data,
+    id: clientID,
+    date: Date.now()
+  };
+  //if(data) console.log('sending ' + data.length + '+ bytes');
+  connection.send(JSON.stringify(msg));
+}
+
+window.onload = function() {
+    connect();
+    navigator.getUserMedia = (navigator.getUserMedia||navigator.mozGetUserMedia ||navigator.msGetUserMedia);
+    const video = document.querySelector('video');
+    const canvas = document.getElementById('fakecanvas')
+    
+    if (navigator.getUserMedia) {
+      navigator.getUserMedia({video:true,audio:true},
+         function(stream) {
+            var v = document.getElementById('streamingvideo');
+            v.srcObject = stream;
+            v.play();
+            
+          },
+         function(error) { /* do something */ }
+      );
     }
 
-    function handleSuccess(stream) {
-        let xhr = new XMLHttpRequest();
-        xhr.open('POST', getURL('startStream'), true);
-        xhr.send();
-
-        const recorder = new MediaRecorder(stream, {mimeType: 'video/webm'});
-
-        recorder.ondataavailable = function(event) {
-            let xhr = new XMLHttpRequest();
-            xhr.open('POST', getURL('postChunk'), true);
-            xhr.setRequestHeader('Content-type', 'video/webm');
-            xhr.send(event.data);
-        };
-
-        recorder.onstop = function(event) {
-            let xhr = new XMLHttpRequest();
-            xhr.open('POST', getURL('lastChunk'), true);
-            xhr.send();
-        };
-
-        document.querySelector('video').srcObject = stream;
-        recorder.start(1000);
-
-        setTimeout(function() { recorder.stop(); }, 5000);
+    const draw = function() {
+        // TODO: What is up with the need for coefficients? https://stackoverflow.com/questions/33239288/html5-crazy-canvas-drawimage-sizing/33240026
+        canvas.getContext('2d').drawImage(video, 0, 0, 640*2.1, 480*3, 0, 0, 640, 480);
+        const data = canvas.toDataURL();
+        send(data, 'streamingdata');
     }
-
-    function handleError(error) { console.error('Rejected!', error); }
-
-    function hasGetUserMedia() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
-
-    if (hasGetUserMedia()) {    
-        const constraints = { video: true, audio: true};
-        navigator.mediaDevices.getUserMedia(constraints).then(handleSuccess).catch(handleError);
-    } else {
-        alert('getUserMedia() is not supported by your browser');
-    }
+    drawCallback = setInterval(draw, 100);
+};
+</script>
 </script>
 </body>
 </html>

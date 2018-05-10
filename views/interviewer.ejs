@@ -1,10 +1,61 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8"/>
+<meta charset="utf-8"/>
 </head>
 <body>
-<h1>Interviewer View</h1>
-<video autoplay src="http://localhost:3000/interviewStream"></video>
+
+<div>
+<canvas id="streamedto" style="width:640px; height:480px"></canvas>
+</div>
+
+<script>
+let connection = null;
+let drawCallback = null;
+const clientID = <%= id %>;
+var WebSocket = WebSocket || MozWebSocket;
+const ctx = document.getElementById('streamedto').getContext('2d')
+
+function draw(dataURL) {
+    var img = new Image();
+    img.setAttribute('crossOrigin', 'anonymous');
+    img.onload = function(){ ctx.drawImage(img, 0, 0); };
+    img.src = dataURL;
+}
+
+function connect() {
+  const serverUrl = "ws://" + window.location.hostname + ":6502";
+  connection = new WebSocket(serverUrl);
+  connection.onopen = function(){
+    send(clientID, 'id');
+  };
+  connection.onmessage = function(evt) {
+    const msg = JSON.parse(evt.data);
+    switch (msg.type) {
+      case "streamingdata":
+        draw(msg.data);
+        return;
+    }
+  };
+}
+
+function send(data, type) {
+  if (connection.readyState === connection.CLOSED || connection.readyState === connection.CLOSING) {
+    return;
+  }
+  var msg = {
+    type: type,
+    data: data,
+    id: clientID,
+    date: Date.now()
+  };
+  connection.send(JSON.stringify(msg));
+}
+
+window.onload = function() {
+    connect();
+};
+</script>
+</script>
 </body>
 </html>
