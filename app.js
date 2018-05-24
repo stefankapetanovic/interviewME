@@ -9,6 +9,8 @@ var indexRouter = require('./routes/index');
 
 var app = express();
 
+var chatserver = require('./chatserver');
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
