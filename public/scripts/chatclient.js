@@ -20,6 +20,7 @@ console.log("Hostname: " + myHostname);
 
 var connection = null;
 var clientID = 0;
+var acceptedCall = false;
 
 // The media constraints object describes what sort of stream we want
 // to request from the local A/V hardware (typically a webcam and
@@ -216,15 +217,7 @@ function createPeerConnection() {
   // Create an RTCPeerConnection which knows to use our chosen
   // STUN server.
 
-  myPeerConnection = new RTCPeerConnection({
-    iceServers: [     // Information about ICE servers - Use your own!
-      {
-        urls: "turn:" + myHostname,  // A TURN server
-        username: "webrtc",
-        credential: "turnserver"
-      }
-    ]
-  });
+  myPeerConnection = new RTCPeerConnection({});
 
   // Do we have addTrack()? If not, we will use streams instead.
 
@@ -258,7 +251,9 @@ function createPeerConnection() {
 
 function handleNegotiationNeededEvent() {
   log("*** Negotiation needed");
-
+  if (acceptedCall) {
+    return;
+  }
   log("---> Creating offer");
   myPeerConnection.createOffer().then(function(offer) {
     log("---> Creating new description object to send to remote peer");
@@ -413,6 +408,7 @@ function handleUserlistMsg(msg) {
 // failure is detected.
 
 function closeVideoCall() {
+  acceptedCall = false;
   var remoteVideo = document.getElementById("received_video");
   var localVideo = document.getElementById("local_video");
 
@@ -544,6 +540,10 @@ function invite(evt) {
 // stream, then create and send an answer to the caller.
 
 function handleVideoOfferMsg(msg) {
+  if (acceptedCall) {
+    return;
+  }
+  acceptedCall = true;
   var localStream = null;
 
   targetUsername = msg.name;
