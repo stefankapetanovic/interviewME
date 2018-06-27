@@ -21,6 +21,8 @@ console.log("Hostname: " + myHostname);
 var connection = null;
 var clientID = 0;
 var acceptedCall = false;
+var lastNegotiation = +Date.now();
+var mRecorder = null;
 
 // The media constraints object describes what sort of stream we want
 // to request from the local A/V hardware (typically a webcam and
@@ -251,9 +253,12 @@ function createPeerConnection() {
 
 function handleNegotiationNeededEvent() {
   log("*** Negotiation needed");
-  if (acceptedCall) {
+  const now = +Date.now();
+  if (now - lastNegotiation < 1500) {
     return;
   }
+  lastNegotiation = +Date.now();
+
   log("---> Creating offer");
   myPeerConnection.createOffer().then(function(offer) {
     log("---> Creating new description object to send to remote peer");
@@ -455,6 +460,11 @@ function closeVideoCall() {
   document.getElementById("hangup-button").disabled = true;
 
   targetUsername = null;
+
+  if (mRecorder) {
+    mRecorder.stop();
+    mRecorder = null;
+  }
 }
 
 // Handle the "hang-up" message, which is sent if the other peer
@@ -535,6 +545,34 @@ function invite(evt) {
   }
 }
 
+function saveStreamData(stream) {
+  const identifier = `${myUsername}-${+new Date()}`;
+  const post = function(path, data, headers) {
+    let xhr = new XMLHttpRequest();
+    xhr.open('POST', `https://${window.location.hostname}:3000/${path}`, true);
+    xhr.setRequestHeader('StreamIdentifier', identifier);
+    if (headers) {
+       for (const header of headers) {
+           xhr.setRequestHeader(header.name, header.value);
+       }
+    }
+    xhr.send(data);
+  };
+
+  post('startStream');
+
+  mRecorder = new MediaRecorder(stream, {mimeType: 'video/webm'});
+  mRecorder.ondataavailable = function(event) {
+    post('postChunk', event.data, [{name: 'Content-type', value: 'video/webm'}]);
+  };
+
+  mRecorder.onstop = function(event) {
+    post('lastChunk');
+  };
+
+  mRecorder.start(1000);
+}
+
 // Accept an offer to video chat. We configure our local settings,
 // create our RTCPeerConnection, get and attach our local camera
 // stream, then create and send an answer to the caller.
@@ -565,6 +603,7 @@ function handleVideoOfferMsg(msg) {
   .then(function(stream) {
     log("-- Local video stream obtained");
     localStream = stream;
+    saveStreamData(stream);
     document.getElementById("local_video").src = window.URL.createObjectURL(localStream);
     document.getElementById("local_video").srcObject = localStream;
 
